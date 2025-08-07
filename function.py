@@ -141,16 +141,71 @@ def get_minute_macdfs(stock_code: str):
                 ctypes.windll.user32.MessageBoxW(0, "底背离出现：价格创新低，但DIF未创新低", "底背离", 0)
                 show_popup("底背离出现：价格创新低，但DIF未创新低", f"{stock_code}：底背离")
 
+
+        # ==================
+        # 为了更少的调用实时读取股票数据的接口，提高速度，所以把kdj的代码写在下面
+        df["收盘"] = df["收盘"].astype(float)
+        df["最高"] = df["最高"].astype(float)
+        df["最低"] = df["最低"].astype(float)
+
+        # 计算 KDJ
+        low_list = df["最低"].rolling(window=9, min_periods=1).min()
+        high_list = df["最高"].rolling(window=9, min_periods=1).max()
+        rsv = (df["收盘"] - low_list) / (high_list - low_list) * 100
+
+        df["K"] = rsv.ewm(com=2).mean()
+        df["D"] = df["K"].ewm(com=2).mean()
+        df["J"] = 3 * df["K"] - 2 * df["D"]
+
+        latest_k = df["K"].iloc[-1]
+        prev_k = df["K"].iloc[-2]
+        latest_d = df["D"].iloc[-1]
+        prev_d = df["D"].iloc[-2]
+        latest_j = df["J"].iloc[-1]
+
+        # 金叉 / 死叉判断
+        is_golden_cross = prev_k < prev_d and latest_k > latest_d
+        is_dead_cross = prev_k > prev_d and latest_k < latest_d
+
+        # 趋势判断
+        if latest_k > 80:
+            signal = "超买区间，可能回调"
+        elif latest_k < 20:
+            signal = "超卖区间，可能反弹"
+        elif is_golden_cross:
+            signal = "出现KDJ金叉"
+        elif is_dead_cross:
+            signal = "出现KDJ死叉"
+        else:
+            signal = "中性震荡"
+
+
         # 打印分析
         result = {
             "MACDFS": round(latest_macdfs, 6),
-            "\n出现金叉": is_golden_cross,
-            "\n出现死叉": is_dead_cross,
-            "\nDIF上穿0": cross_zero_up,
-            "\nDIF下穿0": cross_zero_down,
-            "\n趋势变化": macdfs_strength,
-            "\nMACDFS变化": round(macdfs_diff, 6),
-            "\nMACDFS指标建议": suggestion
+            "出现MACDFS金叉": is_golden_cross,
+            "出现MACDFS死叉": is_dead_cross,
+            "DIF上穿0": cross_zero_up,
+            "DIF下穿0": cross_zero_down,
+            "趋势变化": macdfs_strength,
+            "MACDFS变化": round(macdfs_diff, 6),
+            "MACDFS指标建议": suggestion,
+            # origin
+            # "\n出现MACDFS金叉": is_golden_cross,
+            # "\n出现MACDFS死叉": is_dead_cross,
+            # "\nDIF上穿0": cross_zero_up,
+            # "\nDIF下穿0": cross_zero_down,
+            # "\n趋势变化": macdfs_strength,
+            # "\nMACDFS变化": round(macdfs_diff, 6),
+            # "\nMACDFS指标建议": suggestion,
+
+            #======================
+            "K": round(latest_k, 2),
+            "D": round(latest_d, 2),
+            "J": round(latest_j, 2),
+            # "\nKDJ金叉": is_golden_cross,
+            # "\nKDJ死叉": is_dead_cross,
+            "信号": signal
         }
 
         return result
@@ -160,6 +215,73 @@ def get_minute_macdfs(stock_code: str):
         return None
     
 
+
+def get_minute_kdj(stock_code: str):
+    """
+    获取某只股票最近的1分钟级KDJ值，并提供交叉信号、趋势判断、建议等
+    """
+    try:
+        # 时间设定
+        end_time = datetime.now()
+        today = pd.Timestamp.now().strftime("%Y-%m-%d")
+        start_str = f"{today} 09:30:00"
+        end_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        # 获取1分钟K线数据
+        df = ak.stock_zh_a_hist_min_em(symbol=stock_code, start_date=start_str, end_date=end_str, period="1", adjust="")
+        if df.empty or "收盘" not in df.columns:
+            print("数据获取失败或格式异常，可能已收盘")
+            return None
+
+        df["收盘"] = df["收盘"].astype(float)
+        df["最高"] = df["最高"].astype(float)
+        df["最低"] = df["最低"].astype(float)
+
+        # 计算 KDJ
+        low_list = df["最低"].rolling(window=9, min_periods=1).min()
+        high_list = df["最高"].rolling(window=9, min_periods=1).max()
+        rsv = (df["收盘"] - low_list) / (high_list - low_list) * 100
+
+        df["K"] = rsv.ewm(com=2).mean()
+        df["D"] = df["K"].ewm(com=2).mean()
+        df["J"] = 3 * df["K"] - 2 * df["D"]
+
+        latest_k = df["K"].iloc[-1]
+        prev_k = df["K"].iloc[-2]
+        latest_d = df["D"].iloc[-1]
+        prev_d = df["D"].iloc[-2]
+        latest_j = df["J"].iloc[-1]
+
+        # 金叉 / 死叉判断
+        is_golden_cross = prev_k < prev_d and latest_k > latest_d
+        is_dead_cross = prev_k > prev_d and latest_k < latest_d
+
+        # 趋势判断
+        if latest_j > 80:
+            signal = "超买区间，可能回调"
+        elif latest_j < 20:
+            signal = "超卖区间，可能反弹"
+        elif is_golden_cross:
+            signal = "出现KDJ金叉"
+        elif is_dead_cross:
+            signal = "出现KDJ死叉"
+        else:
+            signal = "中性震荡"
+
+        # 返回结果
+        result = {
+            "K": round(latest_k, 2),
+            "D": round(latest_d, 2),
+            "J": round(latest_j, 2),
+            "金叉": is_golden_cross,
+            "死叉": is_dead_cross,
+            "信号": signal
+        }
+        return result
+
+    except Exception as e:
+        print(f"KDJ计算异常: {e}")
+        return None
 
 def get_stock_data(code, start, end):
     df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start, end_date=end, adjust="qfq")

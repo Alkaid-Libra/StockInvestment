@@ -147,10 +147,14 @@ while True:
                 print("量价关系：放巨量下跌，必须减仓，亏损也要减，或者等第二天反包!")
                 # ctypes.windll.user32.MessageBoxW(0, "必须减仓，亏损也要减，或者等第二天反包!", "放巨量下跌", 0)
                 show_popup("必须减仓，亏损也要减，或者等第二天反包!", f"{name}：放巨量下跌")
-                if last_close > ma10 and current_price < ma10:
-                    print("\t已跌破10日线，不要犹豫了，必须减仓!")
-                    # ctypes.windll.user32.MessageBoxW(0, "不要犹豫了，必须减仓!", "放巨量下跌", 0)
-                    show_popup("已跌破10日线，不要犹豫了，必须减仓!", f"{name}：放巨量下跌")
+            if last_close > ma5 and current_price < ma5:
+                print("\t已跌破5日线，当天跑最好!")
+                # ctypes.windll.user32.MessageBoxW(0, "不要犹豫了，必须减仓!", "放巨量下跌", 0)
+                show_popup("已跌破5日线，当天跑最好!", f"{name}：放巨量下跌")
+            if last_close > ma10 and current_price < ma10:
+                print("\t放量跌破10日线，不要犹豫了，必须减仓!")
+                # ctypes.windll.user32.MessageBoxW(0, "不要犹豫了，必须减仓!", "放巨量下跌", 0)
+                show_popup("放量跌破10日线，不要犹豫了，必须减仓!", f"{name}：放巨量下跌")
             if last_close < ma5 and current_price > ma5:
                 print("\t放量突破5日线")
                 # ctypes.windll.user32.MessageBoxW(0, "放量突破5日线", "明显放量", 0)
@@ -168,15 +172,20 @@ while True:
                 if current_price >= ma5:
                     print("\t在5日线上方")
                 else:
-                    print("\t在5日线下方")
+                    if last_close < ma5:
+                        print("\t在5日线下方")
+                    else:
+                        print("\t跌破5日线，危险下跌，可看明天能否反包")
+                        show_popup("跌破5日线，危险下跌，可看明天能否反包", f"{name}：有所放量")
                     if current_price >= ma10:
                         print("\t在10日线上方")
                     else:
-                        print("\t在10日线下方")
-                        if last_close > ma10:
+                        if last_close < ma10:
+                            print("\t在10日线下方")
+                        else:
                             print("\t跌破10日线，明显撤离点")
                             # ctypes.windll.user32.MessageBoxW(0, "在10日线下方，明显撤离点", "有所放量", 0)
-                            show_popup("跌破在10日线，明显撤离点", f"{name}：有所放量")
+                            show_popup("跌破10日线，明显撤离点", f"{name}：有所放量")
             if last_close < ma5 and current_price > ma5:
                 print("\t突破5日线")
                 # ctypes.windll.user32.MessageBoxW(0, "突破5日线", "有所放量", 0)
@@ -190,18 +199,28 @@ while True:
             if current_up < 0:
                 print("量价关系：缩量下跌，可能健康调整!")
                 if last_close > ma5 and current_price < ma5:
-                    print("\t跌破5日线，危险下跌，可看明天能否反包")
+                    print("\t跌破5日线，产生分歧，主动抛压不强，可看明天能否反包")
                     # ctypes.windll.user32.MessageBoxW(0, "跌破5日线，可看明天能否反包", "有所缩量", 0)
-                    show_popup("跌破5日线，可看明天能否反包", f"{name}：有所缩量")
+                    # show_popup("跌破5日线，产生分歧，主动抛压不强，可观望", f"{name}：有所缩量")
+                if last_close > ma10 and current_price < ma10:
+                    print("\t跌破10日线，有分歧")
             else:
                 print("量价关系：缩量上涨，力量不足，可能诱多!")
         elif volume_result == "明显缩量":
             if current_up <= 0:
-                print("量价关系：缩量下跌，可能筑底!")
+                print("量价关系：明显缩量下跌，可能筑底!")
+                if last_close > ma5 and current_price < ma5:
+                    print("\t跌破5日线，主动抛压不强，可观望")
+                if last_close > ma10 and current_price < ma10:
+                    print("\t跌破10日线，主动抛压不强")
             else:
                 print("量价关系：明显缩量但上涨，力量严重不足!")
         elif volume_result == "平量":
             print("量价关系：平量，成交量变化不大！")
+            if last_close > ma5 and current_price < ma5:
+                print("\t跌破5日线，可看第二天能否反包")
+            if last_close > ma10 and current_price < ma10:
+                print("\t跌破10日线，明显撤离点")
 
         if (volume_result == "明显放量" or volume_result == "有所放量") and current_up > 0 and current_price < most_high_price:
             if (most_high_price - current_price) / last_close * 100 > 3:
@@ -257,13 +276,40 @@ while True:
     # stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol="000001", period="daily", start_date="20250804", end_date='20250804', adjust="")
     # print(stock_zh_a_hist_df)
 
-
-        macdfs_result = get_minute_macdfs(code)
+        # =============================
+        result = get_minute_macdfs(code)
         # 格式化打印
-        if macdfs_result is not None:
-            for k, v in macdfs_result.items():
-                if v not in [-1, False, False, False, "", -1, ""]:
-                    print(f"{k.strip()}: {v}")
+        # 假设 result 是你的结果字典
+        always_show_keys = ["K", "D", "J", "信号"]  # 后4个字段
+        filtered_items = []
+
+        # 筛选前8个有效键值对（不含 always_show_keys 且值有效）
+        for k, v in result.items():
+            if k in always_show_keys:
+                continue
+            if v not in [-1, False, "", None]:
+                filtered_items.append((k, v))
+            if len(filtered_items) >= 8:
+                break
+
+        # 收集后4个键值对（始终显示）
+        always_items = [(k, result.get(k, "")) for k in always_show_keys]
+
+        # 对齐输出
+        for i in range(max(len(filtered_items), len(always_items))):
+            left = f"{filtered_items[i][0]}: {filtered_items[i][1]}" if i < len(filtered_items) else ""
+            right = f"{always_items[i][0]}: {always_items[i][1]}" if i < len(always_items) else ""
+            print(f"{left:<20} {right}")
+            if right == "信号: 超买区间，可能回调" or right == "信号: 超卖区间，可能反弹":
+                show_popup(f"{name}: {always_items[i][1]}", f"{name}：KDJ信号", 600)
+
+        # =========== origin ============
+        # macdfs_result = get_minute_macdfs(code)
+        # if macdfs_result is not None:
+        #     for k, v in macdfs_result.items():
+        #         if v not in [-1, False, ""]:
+        #         # if v not in [-1, False, False, False, "", -1, ""]:
+        #             print(f"{k.strip()}: {v}")
 
     print("-----------------------------")
     print("......wait for the next......")
