@@ -268,7 +268,7 @@ while True:
         elif -4 <= current_up < -2:
             print("\t跌幅超过-2%")
 
-        elif current_price < -4:
+        elif current_up < -4:
             print("\t跌幅超过-4%")
             show_popup("跌幅超过-4%", f"{name}：大幅下跌")
 
